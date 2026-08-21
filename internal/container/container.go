@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -641,6 +642,7 @@ func initDatabase(cfg *config.Config) (*gorm.DB, error) {
 		NowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
+		Logger: newGormLogger(log.New(os.Stdout, "\r\n", log.LstdFlags), os.Getenv("LOG_LEVEL")),
 	})
 	if err != nil {
 		return nil, err
