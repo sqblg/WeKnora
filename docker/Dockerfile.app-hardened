@@ -30,3 +30,4 @@ RUN --mount=type=cache,target=/go/pkg/mod make build-prod
 
 FROM wechatopenai/weknora-app@sha256:7cb9d5f25f626f82ec4b2369295313c5df0108757d28f4f18ada29337060025f
 COPY --from=builder --chown=appuser:appuser /app/WeKnora /app/WeKnora
+COPY --from=builder /app/LICENSE /licenses/WeKnora-LICENSE
