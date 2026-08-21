@@ -4,6 +4,10 @@
 FROM golang:1.26-bookworm AS builder
 
 WORKDIR /app
+ARG GOPROXY_ARG=https://proxy.golang.org,direct
+ARG GOSUMDB_ARG=sum.golang.org
+ENV GOPROXY=${GOPROXY_ARG}
+ENV GOSUMDB=${GOSUMDB_ARG}
 RUN apt-get update \
     && apt-get install -y --no-install-recommends build-essential libsqlite3-dev \
     && rm -rf /var/lib/apt/lists/*
