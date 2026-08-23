@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"net/url"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -15,6 +16,14 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
+
+// httpBodyLogEnabled deliberately defaults to false. API request and response
+// bodies contain user documents, search queries, and generated knowledge; they
+// may enter application logs only through an explicit operator opt-in.
+func httpBodyLogEnabled() bool {
+	value := strings.ToLower(strings.TrimSpace(os.Getenv("HTTP_BODY_LOG")))
+	return value == "true" || value == "1"
+}
 
 const (
 	maxBodySize = 1024 * 10 // 最大记录10KB的body内容
@@ -164,19 +173,25 @@ func Logger() gin.HandlerFunc {
 			return
 		}
 
+		logBodies := httpBodyLogEnabled()
+
 		// 读取请求体（在Next之前读取，因为Next会消费body）
 		var requestBody string
-		if c.Request.Method == "POST" || c.Request.Method == "PUT" || c.Request.Method == "PATCH" {
+		if logBodies && (c.Request.Method == "POST" || c.Request.Method == "PUT" || c.Request.Method == "PATCH") {
 			requestBody = readRequestBody(c)
 		}
 
-		// 创建响应体捕获器
-		responseBody := &bytes.Buffer{}
-		responseWriter := &loggerResponseBodyWriter{
-			ResponseWriter: c.Writer,
-			body:           responseBody,
+		// Only allocate and attach the response capture buffer when the operator
+		// explicitly enabled body logging.
+		var responseBody *bytes.Buffer
+		if logBodies {
+			responseBody = &bytes.Buffer{}
+			responseWriter := &loggerResponseBodyWriter{
+				ResponseWriter: c.Writer,
+				body:           responseBody,
+			}
+			c.Writer = responseWriter
 		}
-		c.Writer = responseWriter
 
 		// Process request
 		c.Next()
@@ -205,7 +220,7 @@ func Logger() gin.HandlerFunc {
 
 		// 读取响应体
 		responseBodyStr := ""
-		if responseBody.Len() > 0 {
+		if responseBody != nil && responseBody.Len() > 0 {
 			contentType := c.Writer.Header().Get("Content-Type")
 			if strings.Contains(contentType, "text/event-stream") {
 				responseBodyStr = "[SSE流式响应，已跳过]"

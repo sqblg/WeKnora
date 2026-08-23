@@ -2,6 +2,23 @@ package middleware
 
 import "testing"
 
+func TestHTTPBodyLogEnabledIsExplicitOptIn(t *testing.T) {
+	t.Setenv("HTTP_BODY_LOG", "")
+	if httpBodyLogEnabled() {
+		t.Fatal("HTTP body logging must be disabled by default")
+	}
+
+	t.Setenv("HTTP_BODY_LOG", "false")
+	if httpBodyLogEnabled() {
+		t.Fatal("HTTP_BODY_LOG=false must keep body logging disabled")
+	}
+
+	t.Setenv("HTTP_BODY_LOG", "true")
+	if !httpBodyLogEnabled() {
+		t.Fatal("HTTP_BODY_LOG=true must explicitly enable body logging")
+	}
+}
+
 func TestSanitizeBody(t *testing.T) {
 	cases := []struct {
 		name string
