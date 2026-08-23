@@ -10,10 +10,30 @@ class DocReaderConfigTest(unittest.TestCase):
         with patch.dict(os.environ, {}, clear=True):
             cfg = config.load_config()
 
+        self.assertEqual(cfg.grpc_bind_host, "::")
         self.assertEqual(cfg.markitdown_max_workers, 1)
         self.assertEqual(cfg.pdf_render_max_workers, 1)
         self.assertEqual(cfg.pdf_render_dpi, 200)
         self.assertEqual(cfg.pdf_jpeg_quality, 85)
+
+    def test_loads_loopback_grpc_bind_host(self):
+        with patch.dict(
+            os.environ,
+            {"DOCREADER_GRPC_BIND_HOST": "127.0.0.1"},
+            clear=True,
+        ):
+            cfg = config.load_config()
+
+        self.assertEqual(cfg.grpc_bind_host, "127.0.0.1")
+
+    def test_rejects_non_ip_grpc_bind_host(self):
+        with patch.dict(
+            os.environ,
+            {"DOCREADER_GRPC_BIND_HOST": "localhost"},
+            clear=True,
+        ):
+            with self.assertRaisesRegex(ValueError, "GRPC bind host"):
+                config.load_config()
 
     def test_loads_parser_concurrency_env(self):
         env = {
@@ -34,6 +54,7 @@ class DocReaderConfigTest(unittest.TestCase):
         dumped = config.dump_config()
 
         self.assertIn("DOCREADER_MARKITDOWN_MAX_WORKERS", dumped)
+        self.assertIn("DOCREADER_GRPC_BIND_HOST", dumped)
         self.assertIn("DOCREADER_PDF_RENDER_MAX_WORKERS", dumped)
         self.assertIn("DOCREADER_PDF_RENDER_DPI", dumped)
         self.assertIn("DOCREADER_PDF_JPEG_QUALITY", dumped)

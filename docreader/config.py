@@ -1,5 +1,6 @@
 import logging
 import os
+import ipaddress
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, Optional, Tuple
 
@@ -48,6 +49,7 @@ def _mask_secret(v: str) -> str:
 @dataclass(frozen=True)
 class DocReaderConfig:
     # gRPC
+    grpc_bind_host: str
     grpc_max_workers: int
     grpc_max_file_size_mb: int
     grpc_port: int
@@ -78,6 +80,11 @@ class DocReaderConfig:
 def load_config() -> DocReaderConfig:
     """Load config from environment variables (lightweight version)."""
 
+    grpc_bind_host = _get_str(["DOCREADER_GRPC_BIND_HOST"], "::").strip()
+    try:
+        ipaddress.ip_address(grpc_bind_host)
+    except ValueError as exc:
+        raise ValueError("GRPC bind host must be an IPv4 or IPv6 address") from exc
     grpc_max_workers = _get_int(["DOCREADER_GRPC_MAX_WORKERS", "GRPC_MAX_WORKERS"], 4)
     grpc_max_file_size_mb = (
         _get_int(["DOCREADER_GRPC_MAX_FILE_SIZE_MB", "MAX_FILE_SIZE_MB"], 50)
@@ -129,6 +136,7 @@ def load_config() -> DocReaderConfig:
     )
 
     return DocReaderConfig(
+        grpc_bind_host=grpc_bind_host,
         grpc_max_workers=grpc_max_workers,
         grpc_max_file_size_mb=grpc_max_file_size_mb,
         grpc_port=grpc_port,
@@ -157,6 +165,7 @@ CONFIG = load_config()
 def dump_config(mask_secrets: bool = True) -> Dict[str, Any]:
     cfg = CONFIG
     d: Dict[str, Any] = {
+        "DOCREADER_GRPC_BIND_HOST": cfg.grpc_bind_host,
         "DOCREADER_GRPC_MAX_WORKERS": cfg.grpc_max_workers,
         "DOCREADER_GRPC_MAX_FILE_SIZE_MB": cfg.grpc_max_file_size_mb,
         "DOCREADER_GRPC_PORT": cfg.grpc_port,

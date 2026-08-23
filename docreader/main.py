@@ -313,18 +313,23 @@ def main():
         logger.error("Refusing to start: %s", e)
         sys.exit(1)
 
+    bind_address = (
+        f"[{CONFIG.grpc_bind_host}]:{CONFIG.grpc_port}"
+        if ":" in CONFIG.grpc_bind_host
+        else f"{CONFIG.grpc_bind_host}:{CONFIG.grpc_port}"
+    )
     if tls_credentials:
-        server.add_secure_port(f"[::]:{CONFIG.grpc_port}", tls_credentials)
-        logger.info("Server starting on port %d with TLS", CONFIG.grpc_port)
+        server.add_secure_port(bind_address, tls_credentials)
+        logger.info("Server starting on %s with TLS", bind_address)
     else:
-        server.add_insecure_port(f"[::]:{CONFIG.grpc_port}")
+        server.add_insecure_port(bind_address)
         logger.warning(
-            "Server starting on port %d WITHOUT TLS (insecure mode)", CONFIG.grpc_port
+            "Server starting on %s WITHOUT TLS (insecure mode)", bind_address
         )
 
     server.start()
 
-    logger.info("Server started on port %d", CONFIG.grpc_port)
+    logger.info("Server started on %s", bind_address)
     logger.info("Server is ready to accept connections")
 
     try:

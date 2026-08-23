@@ -75,6 +75,7 @@ docreader:
 ### gRPC 配置
 
 - `DOCREADER_GRPC_MAX_WORKERS`: gRPC 服务的最大工作线程数（默认：4）
+- `DOCREADER_GRPC_BIND_HOST`: gRPC 服务绑定的 IP 地址（默认：`::`；仅供本机桌面运行时使用时应设为 `127.0.0.1`）
 - `DOCREADER_GRPC_PORT`: gRPC 服务监听端口（默认：50051）
 
 ### 解析器资源控制
