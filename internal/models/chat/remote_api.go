@@ -156,11 +156,11 @@ func (c *RemoteAPIChat) buildOutbound(
 }
 
 // logRequest 记录请求日志
-func (c *RemoteAPIChat) logRequest(ctx context.Context, req any, isStream bool) {
-	if jsonData, err := json.MarshalIndent(req, "", "  "); err == nil {
-		logger.Infof(ctx, "[LLM Request] model=%s, stream=%v, request:\n%s",
-			c.modelName, isStream, secutils.CompactImageDataURLForLog(string(jsonData)))
-	}
+func (c *RemoteAPIChat) logRequest(ctx context.Context, _ any, isStream bool) {
+	// User prompts and retrieved document content are production data. Keep the
+	// normal application log to request metadata only; complete payload capture
+	// belongs exclusively to the explicit LLM_DEBUG_LOG facility.
+	logger.Infof(ctx, "[LLM Request] model=%s, stream=%v", c.modelName, isStream)
 }
 
 // Chat 进行非流式聊天
@@ -214,9 +214,6 @@ func (c *RemoteAPIChat) chatWithRawHTTP(ctx context.Context, endpoint string, cu
 	if err := secutils.ValidateURLForSSRF(endpoint); err != nil {
 		return nil, fmt.Errorf("endpoint SSRF check failed: %w", err)
 	}
-	logger.Infof(ctx, "[LLM Request] Remote HTTP, endpoint=%s, model=%s, raw HTTP request:\n%s",
-		endpoint, c.modelName, secutils.CompactImageDataURLForLog(string(jsonData)))
-
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
@@ -346,12 +343,7 @@ func (c *RemoteAPIChat) chatStreamWithRawHTTP(ctx context.Context, endpoint stri
 		return nil, fmt.Errorf("endpoint SSRF check failed: %w", err)
 	}
 
-	if prettyJSON, pErr := json.MarshalIndent(customReq, "", "  "); pErr == nil {
-		logger.Infof(ctx, "[LLM Stream Request] endpoint=%s, model=%s, stream=true, request:\n%s",
-			endpoint, c.modelName, secutils.CompactImageDataURLForLog(string(prettyJSON)))
-	} else {
-		logger.Infof(ctx, "[LLM Stream] endpoint=%s, model=%s", endpoint, c.modelName)
-	}
+	logger.Infof(ctx, "[LLM Stream] endpoint=%s, model=%s", endpoint, c.modelName)
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)

@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,6 +14,19 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// Production logs must never contain serialized prompts or user documents.
+// The dedicated LLM debug logger is an explicit opt-in surface; normal request
+// logging is limited to endpoint and model metadata.
+func TestRemoteAPIChat_DoesNotLogRawRequestPayload(t *testing.T) {
+	source, err := os.ReadFile(filepath.Join("remote_api.go"))
+	require.NoError(t, err)
+
+	text := string(source)
+	assert.NotContains(t, text, "raw HTTP request")
+	assert.NotContains(t, text, `request:\n%s`)
+	assert.False(t, strings.Contains(text, "CompactImageDataURLForLog(string(jsonData))"))
+}
 
 func newTestRemoteChat(t *testing.T) *RemoteAPIChat {
 	t.Helper()
