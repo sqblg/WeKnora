@@ -71,7 +71,8 @@ type AliyunEmbedResponse struct {
 	Output struct {
 		Embeddings []struct {
 			Embedding []float32 `json:"embedding"`
-			TextIndex int       `json:"text_index"`
+			Index     *int      `json:"index"`
+			TextIndex *int      `json:"text_index"`
 		} `json:"embeddings"`
 	} `json:"output"`
 	Usage struct {
@@ -186,6 +187,26 @@ func (e *AliyunEmbedder) doRequestWithRetry(ctx context.Context, jsonData []byte
 }
 
 func (e *AliyunEmbedder) BatchEmbed(ctx context.Context, texts []string) ([][]float32, error) {
+	if len(texts) == 0 {
+		return [][]float32{}, nil
+	}
+	// qwen2.5-vl-embedding produces one fused vector per request and accepts
+	// only one text item. The caller's pool already bounds concurrent batches.
+	if strings.EqualFold(e.modelName, "qwen2.5-vl-embedding") && len(texts) > 1 {
+		results := make([][]float32, len(texts))
+		for i, text := range texts {
+			vectors, err := e.batchEmbedRequest(ctx, []string{text})
+			if err != nil {
+				return nil, fmt.Errorf("embed text %d: %w", i, err)
+			}
+			results[i] = vectors[0]
+		}
+		return results, nil
+	}
+	return e.batchEmbedRequest(ctx, texts)
+}
+
+func (e *AliyunEmbedder) batchEmbedRequest(ctx context.Context, texts []string) ([][]float32, error) {
 	// Build contents array from texts
 	contents := make([]AliyunContent, 0, len(texts))
 	for _, text := range texts {
@@ -242,11 +263,22 @@ func (e *AliyunEmbedder) BatchEmbed(ctx context.Context, texts []string) ([][]fl
 		return nil, fmt.Errorf("unmarshal response: %w", err)
 	}
 
-	// Extract embedding vectors, preserving order by text_index
+	// Extract embedding vectors in input order. Current DashScope responses use
+	// index; older multimodal responses may still use text_index.
 	embeddings := make([][]float32, len(texts))
 	for _, emb := range response.Output.Embeddings {
-		if emb.TextIndex >= 0 && emb.TextIndex < len(embeddings) {
-			embeddings[emb.TextIndex] = emb.Embedding
+		index := emb.Index
+		if index == nil {
+			index = emb.TextIndex
+		}
+		if index == nil || *index < 0 || *index >= len(embeddings) || len(emb.Embedding) == 0 || embeddings[*index] != nil {
+			return nil, fmt.Errorf("invalid multimodal embedding response index")
+		}
+		embeddings[*index] = emb.Embedding
+	}
+	for _, embedding := range embeddings {
+		if embedding == nil {
+			return nil, fmt.Errorf("incomplete multimodal embedding response")
 		}
 	}
 

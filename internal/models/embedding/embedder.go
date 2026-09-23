@@ -126,10 +126,12 @@ func newEmbedder(config Config, pooler EmbedderPooler, ollamaService *ollama.Oll
 		switch providerName {
 		case provider.ProviderAliyun:
 			// 检查是否是多模态嵌入模型
-			// 多模态模型: tongyi-embedding-vision-*, multimodal-embedding-*
-			// tex-only模型: text-embedding-v1/v2/v3/v4 应该使用 OpenAI 兼容接口，否则响应格式不匹配、embedding 返回空数组
-			isMultimodalModel := strings.Contains(strings.ToLower(config.ModelName), "vision") ||
-				strings.Contains(strings.ToLower(config.ModelName), "multimodal")
+			// 多模态模型: tongyi-embedding-vision-*, multimodal-embedding-*, qwen2.5/qwen3-vl-embedding
+			// text-only模型: text-embedding-v1/v2/v3/v4 应该使用 OpenAI 兼容接口，否则响应格式不匹配、embedding 返回空数组
+			modelName := strings.ToLower(config.ModelName)
+			isMultimodalModel := strings.Contains(modelName, "vision") ||
+				strings.Contains(modelName, "multimodal") ||
+				modelName == "qwen2.5-vl-embedding" || modelName == "qwen3-vl-embedding"
 
 			if isMultimodalModel {
 				// 多模态模型需要使用DashScope专用 API 端点
