@@ -50,6 +50,12 @@ builtin_models:
         truncate_prompt_tokens: <int>
 ```
 
+#### qwen2.5-vl-embedding 的请求边界
+
+配置该模型作为 `Embedding` 时，使用 `source: remote`、`parameters.provider: aliyun` 和千问平台的 Base URL。当前 WeKnora 的 `Embedder` 接口只向此模型提交文本；模型名称会选择 DashScope 多模态向量接口，而不是 OpenAI 文本向量接口。这不表示图片或视频知识已经由该接口完成向量化。
+
+按照[千问平台向量化文档](https://platform.qianwenai.com/docs/developer-guides/embeddings/embedding)及[多模态 Embedding API](https://help.aliyun.com/en/model-studio/multimodal-embedding-api-reference)，`qwen2.5-vl-embedding` 每次请求最多接收一个文本元素，并返回一个融合向量。因此文本批量入库会对每段文本分别请求，再按原输入顺序组装结果；不能把多个文本放在同一请求中并把模拟服务返回多个向量视为真实支持。其他支持多文本请求的模型仍使用原有批量路径。响应索引缺失、重复或越界时拒绝结果，避免将向量写到错误的知识片段。
+
 #### 完整示例
 
 ```yaml

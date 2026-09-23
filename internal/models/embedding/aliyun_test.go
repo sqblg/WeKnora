@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/Tencent/WeKnora/internal/types"
+	"github.com/panjf2000/ants/v2"
 )
 
 func TestQwenVLModelUsesAliyunMultimodalEndpoint(t *testing.T) {
@@ -102,11 +103,17 @@ func TestQwen25VLBatchSendsOneTextPerRequest(t *testing.T) {
 	}))
 	defer server.Close()
 
-	embedder, err := NewAliyunEmbedder("test-key", server.URL, "qwen2.5-vl-embedding", 0, 1024, "test-model", nil)
+	pool, err := ants.NewPool(1)
+	if err != nil {
+		t.Fatalf("NewPool: %v", err)
+	}
+	defer pool.Release()
+	t.Setenv("BATCH_EMBED_SIZE", "5")
+	embedder, err := NewAliyunEmbedder("test-key", server.URL, "qwen2.5-vl-embedding", 0, 1024, "test-model", NewBatchEmbedder(pool))
 	if err != nil {
 		t.Fatalf("NewAliyunEmbedder: %v", err)
 	}
-	got, err := embedder.BatchEmbed(context.Background(), []string{"first", "second", "third"})
+	got, err := embedder.BatchEmbedWithPool(context.Background(), embedder, []string{"first", "second", "third"})
 	if err != nil {
 		t.Fatalf("BatchEmbed: %v", err)
 	}
