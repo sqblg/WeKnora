@@ -3,6 +3,7 @@ package embedding
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -66,7 +67,7 @@ func TestAliyunMultimodalBatchUsesResponseIndex(t *testing.T) {
 	}))
 	defer server.Close()
 
-	embedder, err := NewAliyunEmbedder("test-key", server.URL, "qwen2.5-vl-embedding", 0, 1024, "test-model", nil)
+	embedder, err := NewAliyunEmbedder("test-key", server.URL, "multimodal-embedding-v1", 0, 1024, "test-model", nil)
 	if err != nil {
 		t.Fatalf("NewAliyunEmbedder: %v", err)
 	}
@@ -76,6 +77,44 @@ func TestAliyunMultimodalBatchUsesResponseIndex(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, [][]float32{{0.1}, {0.2}}) {
 		t.Fatalf("BatchEmbed = %v, want [[0.1] [0.2]]", got)
+	}
+}
+
+func TestQwen25VLBatchSendsOneTextPerRequest(t *testing.T) {
+	t.Setenv("SSRF_WHITELIST", "127.0.0.1")
+
+	var requests []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request AliyunEmbedRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Errorf("decode request: %v", err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		if request.Model != "qwen2.5-vl-embedding" || len(request.Input.Contents) != 1 {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"code":"InvalidParameter","message":"one text per request"}`))
+			return
+		}
+		requests = append(requests, request.Input.Contents[0].Text)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"output":{"embeddings":[{"index":0,"type":"fusion","embedding":[` + fmt.Sprint(len(requests)) + `]}]}}`))
+	}))
+	defer server.Close()
+
+	embedder, err := NewAliyunEmbedder("test-key", server.URL, "qwen2.5-vl-embedding", 0, 1024, "test-model", nil)
+	if err != nil {
+		t.Fatalf("NewAliyunEmbedder: %v", err)
+	}
+	got, err := embedder.BatchEmbed(context.Background(), []string{"first", "second", "third"})
+	if err != nil {
+		t.Fatalf("BatchEmbed: %v", err)
+	}
+	if !reflect.DeepEqual(requests, []string{"first", "second", "third"}) {
+		t.Fatalf("request contents = %v", requests)
+	}
+	if !reflect.DeepEqual(got, [][]float32{{1}, {2}, {3}}) {
+		t.Fatalf("BatchEmbed = %v, want [[1] [2] [3]]", got)
 	}
 }
 

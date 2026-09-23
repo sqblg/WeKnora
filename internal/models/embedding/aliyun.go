@@ -187,6 +187,26 @@ func (e *AliyunEmbedder) doRequestWithRetry(ctx context.Context, jsonData []byte
 }
 
 func (e *AliyunEmbedder) BatchEmbed(ctx context.Context, texts []string) ([][]float32, error) {
+	if len(texts) == 0 {
+		return [][]float32{}, nil
+	}
+	// qwen2.5-vl-embedding produces one fused vector per request and accepts
+	// only one text item. The caller's pool already bounds concurrent batches.
+	if strings.EqualFold(e.modelName, "qwen2.5-vl-embedding") && len(texts) > 1 {
+		results := make([][]float32, len(texts))
+		for i, text := range texts {
+			vectors, err := e.batchEmbedRequest(ctx, []string{text})
+			if err != nil {
+				return nil, fmt.Errorf("embed text %d: %w", i, err)
+			}
+			results[i] = vectors[0]
+		}
+		return results, nil
+	}
+	return e.batchEmbedRequest(ctx, texts)
+}
+
+func (e *AliyunEmbedder) batchEmbedRequest(ctx context.Context, texts []string) ([][]float32, error) {
 	// Build contents array from texts
 	contents := make([]AliyunContent, 0, len(texts))
 	for _, text := range texts {
